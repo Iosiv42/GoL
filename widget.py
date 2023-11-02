@@ -15,7 +15,7 @@ from PySide6.QtGui import QWheelEvent, QCursor, QMouseEvent
 import numpy as np
 
 import globals    # pylint: disable=W0622
-from game_of_life import GameOfLife
+from game_of_life import GameOfLife, parse_rle
 
 # Important:
 # You need to run the following command to generate the ui_form.py file
@@ -33,7 +33,7 @@ class Widget(QWidget):
         self.ui.horizontalLayout.insertWidget(0, self.widget, 7)
 
         timer = QTimer(self)
-        timer.setInterval(100)   # period, in milliseconds
+        timer.setInterval(50)   # period, in milliseconds
         timer.timeout.connect(self.widget.repaint)
         timer.start()
 
@@ -49,7 +49,10 @@ class glWidget(QOpenGLWidget):
         glClear(GL_COLOR_BUFFER_BIT)
 
         self.game.draw(self.shader)
+        
+        # s = time.perf_counter()
         self.game.step()
+        # print("u", time.perf_counter() - s)
 
     def initializeGL(self):
         with open("vertex.glsl", encoding="utf-8") as f:
@@ -70,6 +73,7 @@ class glWidget(QOpenGLWidget):
             (0, 0, 1, 0),
             (0, 0, 0, 1),
         ), dtype=np.float32)
+        globals.i_proj_matrix = globals.proj_matrix.I
 
         self.__win_to_homo = np.matrix((
             (2/self.width(), 0, 0, -1),
@@ -78,11 +82,9 @@ class glWidget(QOpenGLWidget):
             (0, 0, 0, 1),
         ), dtype=np.float32)
 
-        self.game = GameOfLife((
-            (2, 0), (3, 0), (4, -1), (3, -2), (2, -3), (1, -4), (0, -2),
-            (0, -3), (6, -1), (7, -1), (6, -2), (7, -2), (1, -6), (2, -6),
-            (1, -7), (2, -7),
-        ))
+        lived_cells = parse_rle("./pattern.rle")
+
+        self.game = GameOfLife(lived_cells)
 
         self.last_move_point = np.matrix((float("nan"),) * 2, dtype=np.float32).T
         self.move_view = False
@@ -100,14 +102,10 @@ class glWidget(QOpenGLWidget):
 
     def __scroll_with_degrees(self, degrees: float) -> None:
         l_pos = self.mapFromGlobal(QCursor.pos())
+        l_pos = np.matrix((l_pos.x(), l_pos.y(), 0, 1)).T
         steps = degrees / 15
 
-        h_pos = self.__win_to_homo * np.matrix((l_pos.x(), l_pos.y(), 0, 1)).T
-        grid_pos = (
-            self.game.view_matrix.I
-            * globals.proj_matrix.I
-            * h_pos
-        )[0:2]
+        grid_pos = self.__win_to_grid(l_pos)[:2]
 
         a = 1 / self.game.view_matrix[0, 0]
         k = 0.9 + (1 - degrees/abs(degrees)) / 10
@@ -159,7 +157,7 @@ class glWidget(QOpenGLWidget):
 
     def __win_to_grid(self, win_pos: np.matrix) -> np.matrix:
         homo_pos = self.__win_to_homo * win_pos
-        return self.game.view_matrix.I * globals.proj_matrix.I * homo_pos
+        return self.game.i_view_matrix * globals.i_proj_matrix * homo_pos
 
     def __scroll_with_pixels(self, pixels: int) -> None:
         NotImplemented

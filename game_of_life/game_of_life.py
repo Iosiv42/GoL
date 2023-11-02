@@ -1,5 +1,6 @@
 """ Main class where game of life action takes place. """
 
+import time
 from typing import Optional, Iterable
 from operator import itemgetter
 
@@ -9,31 +10,28 @@ from OpenGL.arrays import vbo
 from OpenGL.GL import *
 
 import globals
-
-Pos = tuple[int, int]
-State = set[Pos]
-ShaderProgram = GLuint
+from module_typing import GameState, Pos, ShaderProgram
 
 dirs = ((-1, 0), (1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1))
 
 
-def _neighbors_count(x: int, y: int, state: State) -> int:
+def _neighbors_count(x: int, y: int, state: GameState) -> int:
     return sum(1 for dx, dy in dirs if (dx + x, dy + y) in state)
 
 
-def _bounding_box(state: State) -> tuple[Pos]:
+def _bounding_box(state: GameState) -> tuple[Pos, Pos, Pos, Pos]:
     return (
         min(state, key=itemgetter(0))[0],
-        max(state, key=itemgetter(1))[1],
-        max(state, key=itemgetter(0))[0],
         min(state, key=itemgetter(1))[1],
+        max(state, key=itemgetter(0))[0],
+        max(state, key=itemgetter(1))[1],
     )
 
 
 class GameOfLife:
     """ Class where game of life action takes place. """
 
-    def __init__(self, live_cells: Optional[Iterable[Pos]]):
+    def __init__(self, live_cells: Optional[Iterable[Pos]] = None):
         """ Give only cells that alive and other is dead. """
 
         try:
@@ -44,7 +42,7 @@ class GameOfLife:
         self.previous_state = set()
         self.bounding_box = _bounding_box(self.current_state)
         self.__create_vbo()
-        
+
         self.view_matrix = np.matrix((
             (0.05, 0, 0, 0),
             (0, 0.05, 0, 0),
@@ -61,7 +59,7 @@ class GameOfLife:
         # Iterate over bounding_box's coordinates and also over its outline.
         # This way program will guarantee that all cells that need
         # to be updated will be updated.
-        for y in range(self.bounding_box[3] - 1, self.bounding_box[1] + 2):
+        for y in range(self.bounding_box[1] - 1, self.bounding_box[3] + 2):
             for x in range(self.bounding_box[0] - 1, self.bounding_box[2] + 2):
                 curr_pos = (x, y)
                 neighs = _neighbors_count(x, y, self.previous_state)
@@ -69,13 +67,16 @@ class GameOfLife:
                 # Standard game of life rules:
                 # if live cell count of neighbors 2 or 3, then proceed as is,
                 # if dead one has 3, then proceed as live one.
-                if curr_pos in self.previous_state and neighs in {2, 3}:
-                    self.current_state.add(curr_pos)
-                elif neighs == 3:
+                if (
+                    (curr_pos in self.previous_state and neighs in {2, 3})
+                    or (curr_pos not in self.previous_state and neighs == 3)
+                ):
                     self.current_state.add(curr_pos)
 
+        # s = time.perf_counter()
         self.bounding_box = _bounding_box(self.current_state)
         self.__create_vbo()
+        # print("cv", time.perf_counter() - s)
 
     def draw(self, shader: ShaderProgram) -> None:
         """ Draw cells at current iteration. """
@@ -90,7 +91,7 @@ class GameOfLife:
 
         location = glGetUniformLocation(shader, "view_matrix")
         glProgramUniformMatrix4fv(
-            shader, location, 1, GL_TRUE, self.view_matrix
+            shader, location, 1, GL_TRUE, self.__view_matrix
         )
 
         shaders.glUseProgram(shader)
@@ -126,3 +127,21 @@ class GameOfLife:
 
         self.vbo = vbo.VBO(self.verts)
         self.vbo.bind()
+
+    @property
+    def view_matrix(self):
+        return self.__view_matrix
+
+    @view_matrix.setter
+    def view_matrix(self, new_val):
+        self.__view_matrix = new_val
+
+        a = 1/new_val[0, 0]
+        t_x = -a * new_val[0, 3]
+        t_y = -a * new_val[1, 3]
+        self.i_view_matrix = np.matrix((
+            (a, 0, 0, t_x),
+            (0, a, 0, t_y),
+            (0, 0, 1, 0),
+            (0, 0, 0, 1),
+        ), dtype=np.float32)
