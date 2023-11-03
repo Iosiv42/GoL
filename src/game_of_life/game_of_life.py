@@ -31,7 +31,10 @@ def _bounding_box(state: GameState) -> tuple[Pos, Pos, Pos, Pos]:
 class GameOfLife:
     """ Class where game of life action takes place. """
 
-    def __init__(self, live_cells: Optional[Iterable[Pos]] = None):
+    def __init__(
+        self, live_cells: Optional[Iterable[Pos]] = None,
+        frames_per_step: int = 10
+    ):
         """ Give only cells that alive and other is dead. """
 
         try:
@@ -43,6 +46,10 @@ class GameOfLife:
         self.bounding_box = _bounding_box(self.current_state)
         self.__create_vbo()
 
+        self.frames_per_step = frames_per_step
+        self.frame = 1
+        self.on_update = False
+
         self.view_matrix = np.matrix((
             (0.05, 0, 0, 0),
             (0, 0.05, 0, 0),
@@ -50,7 +57,7 @@ class GameOfLife:
             (0, 0, 0, 1),
         ), dtype=np.float32)
 
-    def step(self) -> None:
+    def __step(self) -> None:
         """ Do next iteration of game. """
 
         self.previous_state = self.current_state.copy()
@@ -75,6 +82,17 @@ class GameOfLife:
 
         self.bounding_box = _bounding_box(self.current_state)
         self.__create_vbo()
+
+    def update(self) -> None:
+        """ Update game grid. Not must to update state every call, but
+            after self.frames_per_step updates it'll update state.
+        """
+
+        if self.on_update and self.frame % self.frames_per_step == 0:
+            self.__step()
+            self.frame = 1
+        else:
+            self.frame += 1
 
     def draw(self, shader: ShaderProgram) -> None:
         """ Draw cells at current iteration. """
@@ -145,3 +163,7 @@ class GameOfLife:
             (0, 0, 1, 0),
             (0, 0, 0, 1),
         ), dtype=np.float32)
+
+    def toggle(self) -> None:
+        """ Toggle game updating. """
+        self.on_update = not self.on_update

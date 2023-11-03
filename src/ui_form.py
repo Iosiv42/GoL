@@ -15,8 +15,8 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QPushButton, QSizePolicy,
-    QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QPushButton,
+    QSizePolicy, QSlider, QVBoxLayout, QWidget)
 
 class Ui_Widget(object):
     def setupUi(self, Widget):
@@ -30,25 +30,60 @@ class Ui_Widget(object):
         self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.verticalLayout = QVBoxLayout()
         self.verticalLayout.setObjectName(u"verticalLayout")
-        self.pushButton = QPushButton(Widget)
-        self.pushButton.setObjectName(u"pushButton")
+        self.horizontalLayout_3 = QHBoxLayout()
+        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
+        self.rewindButton = QPushButton(Widget)
+        self.rewindButton.setObjectName(u"rewindButton")
+        font = QFont()
+        font.setFamilies([u"FreeSans"])
+        font.setPointSize(16)
+        self.rewindButton.setFont(font)
 
-        self.verticalLayout.addWidget(self.pushButton)
+        self.horizontalLayout_3.addWidget(self.rewindButton, 0, Qt.AlignHCenter|Qt.AlignVCenter)
 
-        self.pushButton_2 = QPushButton(Widget)
-        self.pushButton_2.setObjectName(u"pushButton_2")
+        self.toggleButton = QPushButton(Widget)
+        self.toggleButton.setObjectName(u"toggleButton")
+        font1 = QFont()
+        font1.setFamilies([u"FreeSans"])
+        font1.setPointSize(16)
+        font1.setBold(False)
+        font1.setItalic(False)
+        self.toggleButton.setFont(font1)
 
-        self.verticalLayout.addWidget(self.pushButton_2)
+        self.horizontalLayout_3.addWidget(self.toggleButton, 0, Qt.AlignHCenter|Qt.AlignVCenter)
 
-        self.pushButton_3 = QPushButton(Widget)
-        self.pushButton_3.setObjectName(u"pushButton_3")
+        self.horizontalLayout_3.setStretch(0, 1)
+        self.horizontalLayout_3.setStretch(1, 1)
 
-        self.verticalLayout.addWidget(self.pushButton_3)
+        self.verticalLayout.addLayout(self.horizontalLayout_3)
 
+        self.horizontalLayout_4 = QHBoxLayout()
+        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
+        self.frequencyLabel = QLabel(Widget)
+        self.frequencyLabel.setObjectName(u"frequencyLabel")
+        self.frequencyLabel.setFont(font)
+
+        self.horizontalLayout_4.addWidget(self.frequencyLabel, 0, Qt.AlignHCenter|Qt.AlignVCenter)
+
+        self.frequencySlider = QSlider(Widget)
+        self.frequencySlider.setObjectName(u"frequencySlider")
+        self.frequencySlider.setMinimum(1)
+        self.frequencySlider.setMaximum(50)
+        self.frequencySlider.setValue(5)
+        self.frequencySlider.setOrientation(Qt.Horizontal)
+
+        self.horizontalLayout_4.addWidget(self.frequencySlider)
+
+        self.horizontalLayout_4.setStretch(0, 1)
+        self.horizontalLayout_4.setStretch(1, 7)
+
+        self.verticalLayout.addLayout(self.horizontalLayout_4)
+
+        self.verticalLayout.setStretch(0, 1)
+        self.verticalLayout.setStretch(1, 1)
 
         self.horizontalLayout.addLayout(self.verticalLayout)
 
-        self.horizontalLayout.setStretch(0, 4)
 
         self.horizontalLayout_2.addLayout(self.horizontalLayout)
 
@@ -60,8 +95,8 @@ class Ui_Widget(object):
 
     def retranslateUi(self, Widget):
         Widget.setWindowTitle(QCoreApplication.translate("Widget", u"Widget", None))
-        self.pushButton.setText(QCoreApplication.translate("Widget", u"PushButton", None))
-        self.pushButton_2.setText(QCoreApplication.translate("Widget", u"PushButton", None))
-        self.pushButton_3.setText(QCoreApplication.translate("Widget", u"PushButton", None))
+        self.rewindButton.setText(QCoreApplication.translate("Widget", u"\u23ee", None))
+        self.toggleButton.setText(QCoreApplication.translate("Widget", u"\u23f5", None))
+        self.frequencyLabel.setText(QCoreApplication.translate("Widget", u"5/s", None))
     # retranslateUi
 
