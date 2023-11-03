@@ -17,18 +17,20 @@ def parse_rle(src_or_path: str, encoding: str = "utf8") -> GameState:
     else:
         data = src_or_path
 
+    # Remove comments, whitespaces, newlines, and first line that
+    # contains info about sizes of structure.
     data = re.sub("^#.*\n", "", data, flags=re.MULTILINE)
-    data = re.sub(" ", "", data, flags=re.MULTILINE)
     data = re.sub("^.*\n", "", data)
+    data = re.sub("[ \n]", "", data, flags=re.MULTILINE)
 
-    lived_cells = []
+    lived_cells = set()
     curr_y = 0
     for line in data.split("$"):
         curr_x = 0
         for item in re.findall(r"\d*[bo]", line):
             run_count = int(item[:-1]) if len(item) > 1 else 1
             if item[-1] == "o":
-                lived_cells.extend(
+                lived_cells.update(
                     (curr_x + i, curr_y) for i in range(run_count)
                 )
 

@@ -1,6 +1,5 @@
 """ Main class where game of life action takes place. """
 
-import time
 from typing import Optional, Iterable
 from operator import itemgetter
 
@@ -12,6 +11,7 @@ from OpenGL.GL import *
 import globals
 from module_typing import GameState, Pos, ShaderProgram
 
+# Directions for evaluating neighbors count.
 dirs = ((-1, 0), (1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1))
 
 
@@ -73,14 +73,13 @@ class GameOfLife:
                 ):
                     self.current_state.add(curr_pos)
 
-        # s = time.perf_counter()
         self.bounding_box = _bounding_box(self.current_state)
         self.__create_vbo()
-        # print("cv", time.perf_counter() - s)
 
     def draw(self, shader: ShaderProgram) -> None:
         """ Draw cells at current iteration. """
 
+        self.vbo.bind()
         glEnableClientState(GL_VERTEX_ARRAY)
         glVertexPointer(2, GL_FLOAT, 0, self.vbo)
 
@@ -102,34 +101,35 @@ class GameOfLife:
             self.inds,
         )
 
+        self.vbo.unbind()
+
     def __create_vbo(self) -> None:
-        self.verts = np.empty(8 * len(self.current_state), dtype=np.float32)
-        self.inds = np.empty(6 * len(self.current_state), dtype=np.float32)
+        self.verts = np.empty((4*len(self.current_state), 2), dtype=np.float32)
+        self.inds = np.empty(6*len(self.current_state), dtype=np.float32)
         for idx, pos in enumerate(self.current_state):
-            idx  = 8*idx
+            idx  = 4*idx
+            self.verts[idx] = pos
 
-            self.verts[idx:idx + 2] = pos
+            pos = [pos[0], pos[1] + 1]
+            self.verts[idx + 1] = pos
 
-            pos = (pos[0], pos[1] + 1)
-            self.verts[idx + 2:idx + 4] = pos
+            pos[0] += 1
+            self.verts[idx + 2] = pos
 
-            pos = (pos[0] + 1, pos[1])
-            self.verts[idx + 4:idx + 6] = pos
+            pos[1] -= 1
+            self.verts[idx + 3] = pos
 
-            pos = (pos[0], pos[1] - 1)
-            self.verts[idx + 6:idx + 8] = pos
-
-            idx = idx//8 * 6
+            idx = idx//4 * 6
             shift = idx//6 * 4
             self.inds[idx:idx + 6] = tuple(
                 i + shift for i in (0, 1, 2, 0, 2, 3)
             )
 
         self.vbo = vbo.VBO(self.verts)
-        self.vbo.bind()
 
     @property
     def view_matrix(self):
+        """ It's kind of view matrix for 3D games, but for 2D. """
         return self.__view_matrix
 
     @view_matrix.setter
