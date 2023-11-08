@@ -9,3 +9,6 @@ proj_matrix = None
 i_proj_matrix = None
 
 FPS: Final = 50
+FRAME_PERIOD: Final = 1/FPS
+
+TEST_RLE: Final = "tests/sir_robin.rle"

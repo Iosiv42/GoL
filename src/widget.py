@@ -32,13 +32,13 @@ class Widget(QWidget):
         # Set refresh rate.
         timer = QTimer(self)
         timer.setInterval(1000 / globals.FPS)
-        timer.timeout.connect(self.main_gl_widget.paint_update)
+        timer.timeout.connect(self.main_gl_widget.repaint)
         timer.start()
 
     def __connect_signals(self) -> None:
         self.ui.toggleButton.clicked.connect(self.__toggle_button_clicked)
         self.ui.rewindButton.clicked.connect(
-            lambda: self.main_gl_widget.restart_game("tests/p18_glider_shuttle.rle")
+            lambda: self.main_gl_widget.restart_game(globals.TEST_RLE)
         )
 
         self.ui.frequencySlider.valueChanged.connect(
@@ -50,9 +50,9 @@ class Widget(QWidget):
         self.ui.toggleButton.setText(idk[self.ui.toggleButton.text()])
         self.main_gl_widget.toggle_game()
 
-    def __freqency_slider_val_changed(self, value: int) -> None:
-        self.main_gl_widget.set_game_frequency(value)
-        self.ui.frequencyLabel.setText(f"{value}/s")
+    def __freqency_slider_val_changed(self, freq: int) -> None:
+        self.main_gl_widget.game.update_period = 1/freq
+        self.ui.frequencyLabel.setText(f"{freq}/s")
 
 
 if __name__ == "__main__":

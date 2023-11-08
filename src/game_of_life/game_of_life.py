@@ -1,169 +1,112 @@
-""" Main class where game of life action takes place. """
+""" Wrapper for Grid and Renderer. """
 
-from typing import Optional, Iterable
-from operator import itemgetter
+import time
+import threading
 
 import numpy as np
-from OpenGL.GL import shaders
-from OpenGL.arrays import vbo
-from OpenGL.GL import *
 
 import globals
-from module_typing import GameState, Pos, ShaderProgram
-
-# Directions for evaluating neighbors count.
-dirs = ((-1, 0), (1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1))
-
-
-def _neighbors_count(x: int, y: int, state: GameState) -> int:
-    return sum(1 for dx, dy in dirs if (dx + x, dy + y) in state)
-
-
-def _bounding_box(state: GameState) -> tuple[Pos, Pos, Pos, Pos]:
-    return (
-        min(state, key=itemgetter(0))[0],
-        min(state, key=itemgetter(1))[1],
-        max(state, key=itemgetter(0))[0],
-        max(state, key=itemgetter(1))[1],
-    )
+from . import Grid, Renderer
 
 
 class GameOfLife:
-    """ Class where game of life action takes place. """
+    """ Wrapper class over Grid and Renderer. """
 
-    def __init__(
-        self, live_cells: Optional[Iterable[Pos]] = None,
-        frames_per_step: int = 10
-    ):
-        """ Give only cells that alive and other is dead. """
+    def __init__(self, grid: Grid, renderer: Renderer):
+        self.grid_lock = threading.Lock()
+        self.should_update_lock = threading.Lock()
+        self.update_period_lock = threading.Lock()
 
-        try:
-            self.current_state = set(live_cells)
-        except TypeError:
-            self.current_state = set()
+        self.grid = grid
+        self.renderer = renderer
+        self.should_update = False
+        self.update_period = 0.1
 
-        self.previous_state = set()
-        self.bounding_box = _bounding_box(self.current_state)
-        self.__create_vbo()
+        self.__create_threads()
 
-        self.frames_per_step = frames_per_step
-        self.frame = 1
-        self.on_update = False
+    def update_loop(self) -> None:
+        """ Loop for updating game of life grid. """
 
-        self.view_matrix = np.matrix((
-            (0.05, 0, 0, 0),
-            (0, 0.05, 0, 0),
-            (0, 0, 1, 0),
-            (0, 0, 0, 1),
-        ), dtype=np.float32)
+        next_call = time.time()
+        while True:
+            if self.should_update:
+                self.grid.step()
+                self.renderer.should_update_instance_vbo = True
+                next_call += self.update_period
+            else:
+                next_call += globals.FRAME_PERIOD
 
-    def __step(self) -> None:
-        """ Do next iteration of game. """
-
-        self.previous_state = self.current_state.copy()
-        self.current_state = set()
-
-        # Iterate over bounding_box's coordinates and also over its outline.
-        # This way program will guarantee that all cells that need
-        # to be updated will be updated.
-        for y in range(self.bounding_box[1] - 1, self.bounding_box[3] + 2):
-            for x in range(self.bounding_box[0] - 1, self.bounding_box[2] + 2):
-                curr_pos = (x, y)
-                neighs = _neighbors_count(x, y, self.previous_state)
-
-                # Standard game of life rules:
-                # if live cell count of neighbors 2 or 3, then proceed as is,
-                # if dead one has 3, then proceed as live one.
-                if (
-                    (curr_pos in self.previous_state and neighs in {2, 3})
-                    or (curr_pos not in self.previous_state and neighs == 3)
-                ):
-                    self.current_state.add(curr_pos)
-
-        self.bounding_box = _bounding_box(self.current_state)
-        self.__create_vbo()
-
-    def update(self) -> None:
-        """ Update game grid. Not must to update state every call, but
-            after self.frames_per_step updates it'll update state.
-        """
-
-        if self.on_update and self.frame % self.frames_per_step == 0:
-            self.__step()
-            self.frame = 1
-        else:
-            self.frame += 1
-
-    def draw(self, shader: ShaderProgram) -> None:
-        """ Draw cells at current iteration. """
-
-        self.vbo.bind()
-        glEnableClientState(GL_VERTEX_ARRAY)
-        glVertexPointer(2, GL_FLOAT, 0, self.vbo)
-
-        location = glGetUniformLocation(shader, "proj_matrix")
-        glProgramUniformMatrix4fv(
-            shader, location, 1, GL_TRUE, globals.proj_matrix
-        )
-
-        location = glGetUniformLocation(shader, "view_matrix")
-        glProgramUniformMatrix4fv(
-            shader, location, 1, GL_TRUE, self.__view_matrix
-        )
-
-        shaders.glUseProgram(shader)
-        glDrawElements(
-            GL_TRIANGLES,
-            len(self.inds),
-            GL_UNSIGNED_INT,
-            self.inds,
-        )
-
-        self.vbo.unbind()
-
-    def __create_vbo(self) -> None:
-        self.verts = np.empty((4*len(self.current_state), 2), dtype=np.float32)
-        self.inds = np.empty(6*len(self.current_state), dtype=np.float32)
-        for idx, pos in enumerate(self.current_state):
-            idx  = 4*idx
-            self.verts[idx] = pos
-
-            pos = [pos[0], pos[1] + 1]
-            self.verts[idx + 1] = pos
-
-            pos[0] += 1
-            self.verts[idx + 2] = pos
-
-            pos[1] -= 1
-            self.verts[idx + 3] = pos
-
-            idx = idx//4 * 6
-            shift = idx//6 * 4
-            self.inds[idx:idx + 6] = tuple(
-                i + shift for i in (0, 1, 2, 0, 2, 3)
-            )
-
-        self.vbo = vbo.VBO(self.verts)
-
-    @property
-    def view_matrix(self):
-        """ It's kind of view matrix for 3D games, but for 2D. """
-        return self.__view_matrix
-
-    @view_matrix.setter
-    def view_matrix(self, new_val):
-        self.__view_matrix = new_val
-
-        a = 1/new_val[0, 0]
-        t_x = -a * new_val[0, 3]
-        t_y = -a * new_val[1, 3]
-        self.i_view_matrix = np.matrix((
-            (a, 0, 0, t_x),
-            (0, a, 0, t_y),
-            (0, 0, 1, 0),
-            (0, 0, 0, 1),
-        ), dtype=np.float32)
+            delta = next_call - time.time()
+            time.sleep(delta * (delta >= 0))
 
     def toggle(self) -> None:
-        """ Toggle game updating. """
-        self.on_update = not self.on_update
+        """ Toggle game's updating. """
+        self.should_update = not self.should_update
+
+    def stop(self) -> None:
+        """ Stop game's updating. """
+        self.should_update = False
+
+    def start(self) -> None:
+        """ Start game's updating. """
+        self.should_update = True
+
+    def start_threads(self) -> None:
+        """ Starts mandatory threads. Note that there's no renderer thread,
+            because it's called at paintGL method of main GL widget.
+        """
+
+        self.update_thread.start()
+
+    def fit_view(self, side_scale: float) -> None:
+        """ Fit current view matrix to game's current state. """
+
+        bnd_box = self.grid.bounding_box
+
+        a = side_scale * max(bnd_box[2] - bnd_box[0], bnd_box[3] - bnd_box[1])
+        t_x = (bnd_box[2] + bnd_box[0] - a) / 2
+        t_y = (bnd_box[3] + bnd_box[1] - a) / 2
+
+        self.renderer.view_matrix = np.matrix((
+            (1/a, 0, 0, -t_x/a),
+            (0, 1/a, 0, -t_y/a),
+            (0, 0, 1, 0),
+            (0, 0, 0, 1),
+        ), np.float32)
+
+    @property
+    def grid(self) -> Grid:
+        """ Return game of life grid. """
+        with self.grid_lock:
+            return self.__grid
+
+    @grid.setter
+    def grid(self, new_grid: Grid) -> None:
+        with self.grid_lock:
+            self.__grid = new_grid
+
+    @property
+    def should_update(self) -> bool:
+        """ Should game will be updated at next update? """
+        with self.should_update_lock:
+            return self.__should_update
+
+    @should_update.setter
+    def should_update(self, stmt: bool) -> None:
+        with self.should_update_lock:
+            self.__should_update = stmt
+
+    @property
+    def update_period(self) -> float:
+        with self.update_period_lock:
+            return self.__update_period
+
+    @update_period.setter
+    def update_period(self, new_period: float) -> None:
+        with self.update_period_lock:
+            self.__update_period = new_period
+
+    def __create_threads(self) -> None:
+        self.update_thread = threading.Thread(
+            target=self.update_loop, daemon=True
+        )

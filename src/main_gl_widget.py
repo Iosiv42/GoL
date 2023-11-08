@@ -13,7 +13,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QWheelEvent, QCursor, QMouseEvent
 
 import globals    # pylint: disable=W0622
-from game_of_life import GameOfLife, parse_rle
+from game_of_life import Grid, Renderer, GameOfLife, parse_rle
 from module_typing import Hz
 
 
@@ -28,13 +28,10 @@ class MainGlWidget(QOpenGLWidget):
     def paintGL(self):
         """ Paint on current OpenGL context. """
 
-        glClearColor(0, 0, 0, 0)
+        glClearColor(0, 0, 0, 1)
         glClear(GL_COLOR_BUFFER_BIT)
 
-        self.game.draw(self.grid_shader)
-
-    def update(self):
-        self.game.update()
+        self.game.renderer.render()
 
     def resizeGL(self, w: int, h: int):
         """ Do some staff when window is resized (precisely, self widget). """
@@ -49,7 +46,7 @@ class MainGlWidget(QOpenGLWidget):
 
         self.__create_matricies()
 
-        self.__create_game_grid("tests/p18_glider_shuttle.rle")
+        self.__create_game(globals.TEST_RLE)
 
         # Variables for moving game's viwe matrix.
         self.last_move_point = np.matrix((float("nan"),) * 2, dtype=np.float32).T
@@ -59,16 +56,22 @@ class MainGlWidget(QOpenGLWidget):
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glEnable(GL_BLEND)
 
-        self.frames_per_step = 10
-        self.frame = 1
-
-    def __create_game_grid(self, rle_path: str) -> None:
+    def __create_game(self, rle_path: str) -> None:
         lived_cells = parse_rle(rle_path)
-        self.game = GameOfLife(lived_cells)
+
+        grid = Grid(lived_cells)
+        renderer = Renderer(grid, self.grid_shader)
+        self.game = GameOfLife(grid, renderer)
+
+        self.game.fit_view(1.2)
+        self.game.start_threads()
 
     def restart_game(self, rle_path: str) -> None:
+        """ Restart game. """
+
         lived_cells = parse_rle(rle_path)
-        self.game.current_state = set(lived_cells)
+        self.game.grid = Grid(lived_cells)
+        self.game.renderer.should_update_instance_vbo = True
         self.game.stop()
 
     def __create_grid_shader(self) -> None:
@@ -136,14 +139,14 @@ class MainGlWidget(QOpenGLWidget):
 
         grid_pos = self.__win_to_grid(l_pos)[:2]
 
-        a = 1 / self.game.view_matrix[0, 0]
+        a = 1 / self.game.renderer.view_matrix[0, 0]
         k = 0.9 + (1 - degrees/abs(degrees)) / 10
         new_a = k * a
 
-        t = -a * np.matrix(self.game.view_matrix.T[3, 0:2]).T
+        t = -a * np.matrix(self.game.renderer.view_matrix.T[3, 0:2]).T
         new_t = (grid_pos - t) * (1 - k) + t
 
-        self.game.view_matrix = np.matrix((
+        self.game.renderer.view_matrix = np.matrix((
             (1/new_a, 0, 0, -new_t[0, 0] / new_a),
             (0, 1/new_a, 0, -new_t[1, 0] / new_a),
             (0, 0, 1, 0),
@@ -178,12 +181,12 @@ class MainGlWidget(QOpenGLWidget):
             self.move_view = False
 
     def __move_view(self, end_point: np.matrix) -> None:
-        a = 1/self.game.view_matrix[0, 0]
-        t = -a * np.matrix(self.game.view_matrix.T[3, 0:2]).T
+        a = 1/self.game.renderer.view_matrix[0, 0]
+        t = -a * np.matrix(self.game.renderer.view_matrix.T[3, 0:2]).T
         ds = end_point - self.last_move_point
         new_t = t - ds[0:2]
 
-        self.game.view_matrix = np.matrix((
+        self.game.renderer.view_matrix = np.matrix((
             (1/a, 0, 0, -new_t[0, 0] / a),
             (0, 1/a, 0, -new_t[1, 0] / a),
             (0, 0, 1, 0),
@@ -192,11 +195,7 @@ class MainGlWidget(QOpenGLWidget):
 
     def __win_to_grid(self, win_pos: np.matrix) -> np.matrix:
         homo_pos = self.__win_to_homo * win_pos
-        return self.game.i_view_matrix * globals.i_proj_matrix * homo_pos
-
-    def paint_update(self):
-        self.repaint()
-        self.update()
+        return self.game.renderer.i_view_matrix * globals.i_proj_matrix * homo_pos
 
     def toggle_game(self) -> None:
         """ Toggle game of life instance. """
