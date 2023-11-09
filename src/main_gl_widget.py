@@ -15,6 +15,7 @@ from PySide6.QtGui import QWheelEvent, QCursor, QMouseEvent
 import globals    # pylint: disable=W0622
 from game_of_life import Grid, Renderer, GameOfLife, parse_rle
 from module_typing import Hz
+from utils import MutexVar
 
 
 class MainGlWidget(QOpenGLWidget):
@@ -41,8 +42,12 @@ class MainGlWidget(QOpenGLWidget):
         """ Initialize or do mandatory variables. """
 
         # Create shaders.
-        self.__create_grid_shader()
-        self.__create_fade_shader()
+        self.cell_shader = self.__create_shader_prog(
+            "src/shaders/vertex.glsl", "src/shaders/fragment.glsl"
+        )
+        self.fade_shader = self.__create_shader_prog(
+            "src/shaders/fade_vertex.glsl", "src/shaders/fade_fragment.glsl"
+        )
 
         self.__create_matricies()
 
@@ -59,9 +64,9 @@ class MainGlWidget(QOpenGLWidget):
     def __create_game(self, rle_path: str) -> None:
         lived_cells = parse_rle(rle_path)
 
-        grid = Grid(lived_cells)
-        renderer = Renderer(grid, self.grid_shader)
-        self.game = GameOfLife(grid, renderer)
+        self.grid = Grid(lived_cells)
+        self.renderer = Renderer(self.grid, self.cell_shader)
+        self.game = GameOfLife(self.grid, self.renderer)
 
         self.game.fit_view(1.2)
         self.game.start_threads()
@@ -70,31 +75,20 @@ class MainGlWidget(QOpenGLWidget):
         """ Restart game. """
 
         lived_cells = parse_rle(rle_path)
-        self.game.grid = Grid(lived_cells)
-        self.game.renderer.should_update_instance_vbo = True
+        self.game.grid.inner = Grid(lived_cells)
+        self.game.renderer.grid = self.game.grid.inner
+        self.game.renderer.should_update_instance_vbo.inner = True
         self.game.stop()
 
-    def __create_grid_shader(self) -> None:
-        with open("src/shaders/vertex.glsl", encoding="utf-8") as src:
-            vertex_shader_src = src.read()
-        with open("src/shaders/fragment.glsl", encoding="utf-8") as src:
-            fragment_shader_src = src.read()
+    def __create_shader_prog(self, vertex_path, fragment_path) -> int:
+        with open(vertex_path, encoding="utf-8") as src:
+            v_src = src.read()
+        with open(fragment_path, encoding="utf-8") as src:
+            f_src = src.read()
 
-        vertex_shader = shaders.compileShader(vertex_shader_src, GL_VERTEX_SHADER)
-        fragment_shader = shaders.compileShader(fragment_shader_src, GL_FRAGMENT_SHADER)
-
-        self.grid_shader = shaders.compileProgram(vertex_shader, fragment_shader)
-
-    def __create_fade_shader(self) -> None:
-        with open("src/shaders/fade_vertex.glsl", encoding="utf-8") as src:
-            vertex_shader_src = src.read()
-        with open("src/shaders/fade_fragment.glsl", encoding="utf-8") as src:
-            fragment_shader_src = src.read()
-
-        vertex_shader = shaders.compileShader(vertex_shader_src, GL_VERTEX_SHADER)
-        fragment_shader = shaders.compileShader(fragment_shader_src, GL_FRAGMENT_SHADER)
-
-        self.fade_shader = shaders.compileProgram(vertex_shader, fragment_shader)
+        v_shader = shaders.compileShader(v_src, GL_VERTEX_SHADER)
+        f_shader = shaders.compileShader(f_src, GL_FRAGMENT_SHADER)
+        return shaders.compileProgram(v_shader, f_shader)
 
     def __create_matricies(self) -> None:
         # Project matrix to keep up squareness.

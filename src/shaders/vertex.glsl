@@ -1,6 +1,6 @@
 #version 330
-layout (location=0) in vec2 aPos;
-layout (location=1) in vec2 aOffset;
+in layout (location=0) vec2 aPos;
+in layout (location=1) vec2 aOffset;
 
 uniform mat4 proj_matrix;
 uniform mat4 view_matrix;

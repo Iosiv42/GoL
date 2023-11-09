@@ -51,7 +51,7 @@ class Widget(QWidget):
         self.main_gl_widget.toggle_game()
 
     def __freqency_slider_val_changed(self, freq: int) -> None:
-        self.main_gl_widget.game.update_period = 1/freq
+        self.main_gl_widget.game.updater.set_frequency(freq)
         self.ui.frequencyLabel.setText(f"{freq}/s")
 
 

@@ -9,6 +9,7 @@ from OpenGL.GL import shaders
 
 import globals
 from . import Grid
+from utils import MutexVar
 
 
 class Renderer:
@@ -25,8 +26,7 @@ class Renderer:
             (0, 0, 0, 1),
         ), np.float32)
 
-        self.lock = threading.Lock()
-        self.should_update_instance_vbo = True
+        self.should_update_instance_vbo = MutexVar(True)
         self.instance_vbo = glGenBuffers(1)
 
         self.__create_cell_buffers()
@@ -35,19 +35,21 @@ class Renderer:
     def render(self) -> None:
         """ Render game of life grid to current context. """
 
-        if self.should_update_instance_vbo:
-            self.should_update_instance_vbo = False
+        if self.should_update_instance_vbo.inner:
+            self.should_update_instance_vbo.inner = False
             self.__create_instance_vbo()
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
 
         glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p(0))
         glEnableVertexAttribArray(0)
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8, ctypes.c_void_p(0))
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
 
         glBindBuffer(GL_ARRAY_BUFFER, self.instance_vbo)
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, ctypes.c_void_p(0))
         glEnableVertexAttribArray(1)
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8, ctypes.c_void_p(0))
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
         glVertexAttribDivisor(1, 1)
 
         location = glGetUniformLocation(self.shader, "proj_matrix")
@@ -69,20 +71,6 @@ class Renderer:
         glDisableVertexAttribArray(1)
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-
-    @property
-    def should_update_instance_vbo(self) -> bool:
-        """ Variable for determining should Renderer
-            update instance VBO or not.
-        """
-        with self.lock:
-            return self.__should_update_instance_vbo
-
-    @should_update_instance_vbo.setter
-    def should_update_instance_vbo(self, new_val: bool) -> None:
-        with self.lock:
-            self.__should_update_instance_vbo = new_val
 
     @property
     def view_matrix(self):
@@ -123,7 +111,7 @@ class Renderer:
 
     def __create_instance_vbo(self) -> None:
         offsets = self.__get_offsets()
-        self.cells_count = offsets.size
+        self.cells_count = len(offsets)
 
         glBindBuffer(GL_ARRAY_BUFFER, self.instance_vbo)
         glBufferData(GL_ARRAY_BUFFER, offsets.nbytes, offsets, GL_STREAM_DRAW)
