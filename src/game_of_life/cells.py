@@ -25,16 +25,16 @@ def _bounding_box(state: GameState) -> tuple[Pos, Pos, Pos, Pos]:
     )
 
 
-class Grid:
+class Cells:
     """ Class where game of life action takes place. """
 
     def __init__(
-        self, live_cells: Optional[Iterable[Pos]] = None
+        self, lived_cells: Optional[Iterable[Pos]] = None
     ):
         """ Give only cells that alive and other is dead. """
 
         try:
-            self.current_state = set(live_cells)
+            self.current_state = set(lived_cells)
         except TypeError:
             self.current_state = set()
 
@@ -65,5 +65,3 @@ class Grid:
                     self.current_state.add(curr_pos)
 
         self.bounding_box = _bounding_box(self.current_state)
-
-

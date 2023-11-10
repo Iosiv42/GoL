@@ -8,15 +8,15 @@ from OpenGL.GL import *
 from OpenGL.GL import shaders
 
 import globals
-from . import Grid
+from . import Cells
 from utils import MutexVar
 
 
 class Renderer:
-    """ Class to render game of life grid. """
+    """ Class to render game of life cells. """
 
-    def __init__(self, grid: Grid, shader):
-        self.grid = grid
+    def __init__(self, cells: Cells, shader):
+        self.cells = cells
         self.shader = shader
 
         self.view_matrix = np.matrix((
@@ -28,29 +28,19 @@ class Renderer:
 
         self.should_update_instance_vbo = MutexVar(True)
         self.instance_vbo = glGenBuffers(1)
+        self.vao = glGenVertexArrays(1)
 
         self.__create_cell_buffers()
         self.__create_instance_vbo()
 
     def render(self) -> None:
-        """ Render game of life grid to current context. """
+        """ Render game of life cells to current context. """
 
         if self.should_update_instance_vbo.inner:
             self.should_update_instance_vbo.inner = False
             self.__create_instance_vbo()
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
-
-        glBindBuffer(GL_ARRAY_BUFFER, self.vbo)
-        glEnableVertexAttribArray(0)
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8, ctypes.c_void_p(0))
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-
-        glBindBuffer(GL_ARRAY_BUFFER, self.instance_vbo)
-        glEnableVertexAttribArray(1)
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8, ctypes.c_void_p(0))
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-        glVertexAttribDivisor(1, 1)
+        glBindVertexArray(self.vao)
 
         location = glGetUniformLocation(self.shader, "proj_matrix")
         glProgramUniformMatrix4fv(
@@ -62,15 +52,15 @@ class Renderer:
             self.shader, location, 1, GL_TRUE, self.view_matrix
         )
 
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
+
         shaders.glUseProgram(self.shader)
         glDrawElementsInstanced(
             GL_TRIANGLES, 6, GL_UNSIGNED_INT, None, self.cells_count
         )
 
-        glDisableVertexAttribArray(0)
-        glDisableVertexAttribArray(1)
-
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
+        glBindVertexArray(0)
 
     @property
     def view_matrix(self):
@@ -95,6 +85,8 @@ class Renderer:
         self.vbo = glGenBuffers(1)
         self.ebo = glGenBuffers(1)
 
+        glBindVertexArray(self.vao)
+
         verts = np.array((
             (1, 1), (0, 1), (0, 0), (1, 0)
         ), np.float32).flatten()
@@ -106,20 +98,33 @@ class Renderer:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, self.ebo)
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, inds.nbytes, inds, GL_STATIC_DRAW)
 
+        glEnableVertexAttribArray(0)
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(GLfloat), None)
+
         glBindBuffer(GL_ARRAY_BUFFER, 0)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0)
 
+        glBindVertexArray(0)
+
     def __create_instance_vbo(self) -> None:
+        glBindVertexArray(self.vao)
+
         offsets = self.__get_offsets()
         self.cells_count = len(offsets)
 
         glBindBuffer(GL_ARRAY_BUFFER, self.instance_vbo)
-        glBufferData(GL_ARRAY_BUFFER, offsets.nbytes, offsets, GL_STREAM_DRAW)
+        glBufferData(GL_ARRAY_BUFFER, offsets.nbytes, offsets, GL_DYNAMIC_DRAW)
+
+        glEnableVertexAttribArray(1)
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2*sizeof(GLfloat), None)
+        glVertexAttribDivisor(1, 1)
+
         glBindBuffer(GL_ARRAY_BUFFER, 0)
+        glBindVertexArray(0)
 
     def __get_offsets(self) -> np.ndarray:
-        offsets = np.empty((len(self.grid.current_state), 2), np.float32)
-        for idx, pos in enumerate(self.grid.current_state):
+        offsets = np.empty((len(self.cells.current_state), 2), np.float32)
+        for idx, pos in enumerate(self.cells.current_state):
             offsets[idx] = pos
 
         return offsets.flatten()

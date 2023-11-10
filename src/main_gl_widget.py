@@ -13,7 +13,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QWheelEvent, QCursor, QMouseEvent
 
 import globals    # pylint: disable=W0622
-from game_of_life import Grid, Renderer, GameOfLife, parse_rle
+from game_of_life import Cells, Renderer, GameOfLife, parse_rle
 from module_typing import Hz
 from utils import MutexVar
 
@@ -29,8 +29,8 @@ class MainGlWidget(QOpenGLWidget):
     def paintGL(self):
         """ Paint on current OpenGL context. """
 
-        glClearColor(0, 0, 0, 1)
-        glClear(GL_COLOR_BUFFER_BIT)
+        glClearColor(0.9803921569, 0.9764705882, 0.9725490196, 1)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         self.game.renderer.render()
 
@@ -64,9 +64,9 @@ class MainGlWidget(QOpenGLWidget):
     def __create_game(self, rle_path: str) -> None:
         lived_cells = parse_rle(rle_path)
 
-        self.grid = Grid(lived_cells)
-        self.renderer = Renderer(self.grid, self.cell_shader)
-        self.game = GameOfLife(self.grid, self.renderer)
+        self.cells = Cells(lived_cells)
+        self.renderer = Renderer(self.cells, self.cell_shader)
+        self.game = GameOfLife(self.cells, self.renderer)
 
         self.game.fit_view(1.2)
         self.game.start_threads()
@@ -75,8 +75,8 @@ class MainGlWidget(QOpenGLWidget):
         """ Restart game. """
 
         lived_cells = parse_rle(rle_path)
-        self.game.grid.inner = Grid(lived_cells)
-        self.game.renderer.grid = self.game.grid.inner
+        self.game.cells.inner = Cells(lived_cells)
+        self.game.renderer.cells = self.game.grid.inner
         self.game.renderer.should_update_instance_vbo.inner = True
         self.game.stop()
 
@@ -194,7 +194,3 @@ class MainGlWidget(QOpenGLWidget):
     def toggle_game(self) -> None:
         """ Toggle game of life instance. """
         self.game.toggle()
-
-    def set_game_frequency(self, freq: Hz) -> None:
-        """ Set game update frequency (in Hertz). """
-        self.game.frames_per_step = globals.FPS // freq

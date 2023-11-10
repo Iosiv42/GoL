@@ -23,6 +23,8 @@ class Widget(QWidget):
         self.ui = Ui_Widget()
         self.ui.setupUi(self)
 
+        self.setWindowTitle("Python based Conway's Game of Life")
+
         self.main_gl_widget = MainGlWidget(self)
         self.ui.horizontalLayout.insertWidget(0, self.main_gl_widget, 7)
         self.ui.horizontalLayout.setStretch(1, 4)

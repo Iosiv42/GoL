@@ -6,15 +6,15 @@ import threading
 import numpy as np
 
 import globals
-from . import Grid, Renderer
+from . import Cells, Renderer
 from utils import MutexVar, PeriodicLoop
 
 
 class GameOfLife:
-    """ Wrapper class over Grid and Renderer. """
+    """ Wrapper class over Cells and Renderer. """
 
-    def __init__(self, grid: Grid, renderer: Renderer):
-        self.grid = MutexVar(grid)
+    def __init__(self, cells: Cells, renderer: Renderer):
+        self.cells = MutexVar(cells)
         self.renderer = renderer
         self.should_update = MutexVar(False)
 
@@ -24,10 +24,10 @@ class GameOfLife:
         self.__create_threads()
 
     def update_loop(self) -> None:
-        """ Loop for updating game of life grid. """
+        """ Loop for updating game of life cells. """
 
         if self.should_update.inner:
-            self.grid.inner.step()
+            self.cells.inner.step()
             self.renderer.should_update_instance_vbo.inner = True
 
     def toggle(self) -> None:
@@ -55,7 +55,7 @@ class GameOfLife:
     def fit_view(self, side_scale: float) -> None:
         """ Fit current view matrix to game's current state. """
 
-        bnd_box = self.grid.inner.bounding_box
+        bnd_box = self.cells.inner.bounding_box
 
         a = side_scale * max(bnd_box[2] - bnd_box[0], bnd_box[3] - bnd_box[1])
         t_x = (bnd_box[2] + bnd_box[0] - a) / 2
